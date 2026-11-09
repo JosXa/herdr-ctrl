@@ -50,7 +50,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Cmd {
-    /// Start a hidden Herdr on its own Xvfb display, home and core.
+    /// Start a hidden Herdr with its own home and core, on Xvfb (Linux) or concealed (macOS).
     Spawn(SpawnArgs),
     /// List hidden instances.
     Instances,
@@ -1033,7 +1033,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Capabilities => {
             out.value(&json!({
                 "protocol": herdr_ctrl_protocol::PROTOCOL_VERSION,
-                "targets": ["live", "hidden instances on Xvfb"],
+                "targets": ["live", "hidden instances on Xvfb (Linux) or concealed (macOS)"],
                 "supported": [
                     "spawn", "instances", "inspect", "stop", "gc", "restart", "exec", "logs", "opened",
                     "status", "ls", "do", "commands", "read", "send",
@@ -1130,7 +1130,7 @@ fn spawn(out: &Out, cli: &Cli, args: &SpawnArgs) -> Result<()> {
         format!(
             "spawned {} on {} ({}x{}); drive it with --on {} or HERDR_CTRL_ON={}",
             instance.name,
-            instance.display.as_deref().unwrap_or("?"),
+            instance.display.as_deref().unwrap_or("a concealed window"),
             window.width,
             window.height,
             instance.name,

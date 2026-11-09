@@ -1,6 +1,6 @@
 # herdr-ctrl
 
-Agent control for [Herdr](https://github.com/herdrdev/herdr-app), built like browser automation: read the window's element tree, act on elements by ref or selector, and let the app dispatch the input in-process. It drives your running Herdr without taking the pointer or focus, and it runs hidden Herdr instances on their own Xvfb displays so tests stop opening windows on your desktop.
+Agent control for [Herdr](https://github.com/herdrdev/herdr-app), built like browser automation: read the window's element tree, act on elements by ref or selector, and let the app dispatch the input in-process. It drives your running Herdr without taking the pointer or focus, and it runs hidden Herdr instances (on their own Xvfb displays on Linux, concealed on macOS) so tests stop opening windows on your desktop.
 
 ```console
 $ herdr-ctrl spawn --build ~/src/herdr-app
@@ -52,7 +52,7 @@ $ herdr-ctrl stop h1
 
 The [JosXa/herdr-app](https://github.com/JosXa/herdr-app) fork carries these changes. The `crates/app` crate is outside the workspace because it only builds against the patched GPUI.
 
-Install the CLI with `cargo install --git https://github.com/JosXa/herdr-ctrl herdr-ctrl`. Hidden instances need `Xvfb` on `PATH` (or `HERDR_CTRL_XVFB`), and `record` needs `ffmpeg`.
+Install the CLI with `cargo install --git https://github.com/JosXa/herdr-ctrl herdr-ctrl`. On Linux, hidden instances need `Xvfb` on `PATH` (or `HERDR_CTRL_XVFB`). On macOS they need nothing extra: the app runs with the Prohibited activation policy, so it never shows in the Dock or takes focus, and its windows are transparent and click-through while it keeps drawing them. `record` needs `ffmpeg`.
 
 ## Credits
 

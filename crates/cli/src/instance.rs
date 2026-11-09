@@ -1,5 +1,6 @@
-//! Hidden Herdr instances: each one runs on its own Xvfb display with its own home, state and
-//! core, owned by a detached supervisor that tears everything down when the lease runs out.
+//! Hidden Herdr instances: each one runs with its own home, state and core, on its own Xvfb display
+//! on Linux and as a concealed, never-activated app on macOS, owned by a detached supervisor that
+//! tears everything down when the lease runs out.
 
 use crate::fail::{Fail, fail};
 use crate::target::{Ctrl, home_dir, live_home};
@@ -60,10 +61,10 @@ pub struct SpawnOptions {
 }
 
 pub fn state_root() -> PathBuf {
-    let runtime = std::env::var_os("XDG_RUNTIME_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join(format!("herdr-ctrl-{}", unsafe { libc::getuid() })));
-    runtime.join("herdr-ctrl")
+    match std::env::var_os("XDG_RUNTIME_DIR") {
+        Some(runtime) => PathBuf::from(runtime).join("herdr-ctrl"),
+        None => PathBuf::from(format!("/tmp/herdr-ctrl-{}", unsafe { libc::getuid() })),
+    }
 }
 
 fn instances_dir() -> PathBuf {
@@ -242,10 +243,21 @@ fn valid_name(name: &str) -> bool {
     !name.is_empty() && name.len() <= 32 && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
+const CORE_SESSION: &str = "ctrl";
+const LONGEST_SOCKET: &str = "state/herdr-core/ctrl/ctrl.holder.00000000.sock";
+const SOCKET_PATH_MAX: usize = 103;
+
+fn fits_socket_paths(name: &str) -> bool {
+    instances_dir().join(name).join(LONGEST_SOCKET).as_os_str().len() <= SOCKET_PATH_MAX
+}
+
 fn pick_name(wanted: Option<String>) -> Result<String> {
     if let Some(name) = wanted {
         if !valid_name(&name) || name == crate::target::LIVE {
             return Err(fail("usage", format!("{name:?} is not a usable name: use lowercase letters, digits and dashes")));
+        }
+        if !fits_socket_paths(&name) {
+            return Err(fail("usage", format!("{name:?} is too long: its core socket path would pass the unix limit")));
         }
         if instances_dir().join(&name).exists() {
             return Err(Fail::new("exists", format!("an instance named {name:?} already exists"))
@@ -262,14 +274,14 @@ fn pick_name(wanted: Option<String>) -> Result<String> {
 
 pub fn spawn(options: SpawnOptions) -> Result<(Instance, Ctrl)> {
     gc();
-    let xvfb = xvfb_path()?;
+    let xvfb = if cfg!(target_os = "macos") { None } else { Some(xvfb_path()?) };
     let name = pick_name(options.name)?;
     let dir = instances_dir().join(&name);
     let home = dir.join("home");
     fs::create_dir_all(&home)?;
     fs::create_dir_all(dir.join("state"))?;
     fs::create_dir_all(dir.join("bin"))?;
-    let stub = dir.join("bin/xdg-open");
+    let stub = dir.join(if cfg!(target_os = "macos") { "bin/open" } else { "bin/xdg-open" });
     fs::write(
         &stub,
         format!("#!/bin/sh\nprintf '%s\\n' \"$*\" >> '{}'\n", dir.join("opened.log").display()),
@@ -296,12 +308,15 @@ pub fn spawn(options: SpawnOptions) -> Result<(Instance, Ctrl)> {
     let mut env = vec![
         ("HERDR_APP_HOME".into(), home.display().to_string()),
         ("XDG_STATE_HOME".into(), dir.join("state").display().to_string()),
-        ("HC_SESSION".into(), format!("herdr-ctrl-{name}")),
+        ("HC_SESSION".into(), CORE_SESSION.into()),
         ("HERDR_APP_ID".into(), format!("herdr-ctrl-{name}")),
         ("HERDR_APP_NO_SOUND".into(), "1".into()),
         ("HERDR_CTRL_ON".into(), name.clone()),
         ("PATH".into(), format!("{}:{path}", dir.join("bin").display())),
     ];
+    if cfg!(target_os = "macos") {
+        env.push(("HERDR_CTRL_HIDDEN".into(), "1".into()));
+    }
     if let Some(filter) = options.log {
         env.push(("HERDR_APP_LOG".into(), filter));
     }
@@ -331,10 +346,12 @@ pub fn spawn(options: SpawnOptions) -> Result<(Instance, Ctrl)> {
     let mut supervisor = Command::new(std::env::current_exe()?);
     supervisor
         .args(["_supervise", &name])
-        .env("HERDR_CTRL_XVFB", xvfb)
         .stdin(Stdio::null())
         .stdout(log.try_clone()?)
         .stderr(log);
+    if let Some(xvfb) = xvfb {
+        supervisor.env("HERDR_CTRL_XVFB", xvfb);
+    }
     unsafe {
         supervisor.pre_exec(|| {
             libc::setsid();
@@ -397,7 +414,7 @@ pub fn supervise(name: &str) -> Result<()> {
             eprintln!("lease expired");
             break;
         }
-        if !alive(instance.xvfb_pid) {
+        if instance.xvfb_pid.is_some() && !alive(instance.xvfb_pid) {
             eprintln!("Xvfb exited");
             break;
         }
@@ -407,6 +424,11 @@ pub fn supervise(name: &str) -> Result<()> {
 }
 
 fn start(instance: &mut Instance) -> Result<()> {
+    if cfg!(target_os = "macos") {
+        instance.launch_app()?;
+        instance.state = "running".into();
+        return instance.save();
+    }
     let xvfb = xvfb_path()?;
     let mut last_error = None;
     for _ in 0..5 {

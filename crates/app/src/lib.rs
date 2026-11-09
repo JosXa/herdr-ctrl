@@ -4,6 +4,9 @@
 //! Derived from the gpui-agent app crate (wsp-labs/gpui-agent, Apache-2.0). Needs the frame
 //! record patch in `patches/` applied to gpui-pre.
 
+#[cfg(target_os = "macos")]
+mod conceal;
+
 use anyhow::{Context as _, anyhow};
 use gpui::{
     AnyWindowHandle, App, AppContext as _, ClipboardEntry, ClipboardItem, ExternalPaths,
@@ -29,6 +32,10 @@ type Job = (Request, mpsc::Sender<Response>);
 
 /// Serves herdr-ctrl on `socket`. `version` is reported to clients.
 pub fn init(cx: &mut App, socket: PathBuf, version: &str) {
+    #[cfg(target_os = "macos")]
+    if std::env::var_os("HERDR_CTRL_HIDDEN").is_some() {
+        conceal::start(cx);
+    }
     if UnixStream::connect(&socket).is_ok() {
         eprintln!("herdr-ctrl: another window serves {}", socket.display());
         return;
@@ -369,6 +376,7 @@ fn typed_keystroke(c: char) -> Keystroke {
         modifiers: gpui::Modifiers { shift: c.is_uppercase(), ..Default::default() },
         key,
         key_char: Some(c.to_string()),
+        ..Default::default()
     }
 }
 

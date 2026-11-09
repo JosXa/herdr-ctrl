@@ -6,7 +6,7 @@ It needs a Herdr built with the ctrl server: the JosXa/herdr-app fork, or any ch
 
 ## Pick the target
 
-- **Hidden instance** for anything that mutates: a rebuilt binary, a mod under development, restarts, fixtures, or a test you would otherwise do in a new window. `herdr-ctrl spawn` gives it its own Xvfb display, home, state and core, and copies the live config unless you pass `--fresh`.
+- **Hidden instance** for anything that mutates: a rebuilt binary, a mod under development, restarts, fixtures, or a test you would otherwise do in a new window. `herdr-ctrl spawn` gives it its own home, state and core, on a private Xvfb display on Linux or as an invisible, never-focused app on macOS, and copies the live config unless you pass `--fresh`.
 - **Live window** (`--on live`, the default) for observing the user's Herdr: `snapshot`, `find`, `get`, `screenshot`, `status`, `ls`. Input there is refused unless the current space is your scratch space (`scratch open`) or you pass `--allow-live`. A scratch space is visible to the user, so close it when done.
 
 Every hidden instance has a lease (`--ttl`, default 30m) that each command renews; when it runs out, its supervisor tears the window, core and display down. Stop instances you are done with.
