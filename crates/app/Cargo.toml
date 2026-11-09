@@ -1,0 +1,16 @@
+[package]
+name = "herdr-ctrl-app"
+description = "The in-app server of herdr-ctrl; needs the gpui-pre frame record patch"
+version = "0.1.0"
+edition = "2024"
+license = "Apache-2.0"
+repository = "https://github.com/JosXa/herdr-ctrl"
+
+[dependencies]
+anyhow = "1"
+async-channel = "2"
+gpui = { package = "gpui-pre", version = "=0.3.8", features = ["render-to-image"] }
+herdr-ctrl-protocol = { path = "../protocol" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+image = { version = "0.25", default-features = false, features = ["png"] }

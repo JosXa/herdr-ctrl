@@ -1,0 +1,8 @@
+herdr-ctrl
+Copyright 2026 JosXa
+
+This product includes software derived from gpui-agent
+(https://github.com/wsp-labs/gpui-agent), licensed under the Apache License,
+Version 2.0: the GPUI driver patch in patches/, the in-app server in
+crates/app, and the snapshot and annotation code in crates/cli. These files
+were modified for Herdr.

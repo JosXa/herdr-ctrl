@@ -1,0 +1,11 @@
+[package]
+name = "herdr-ctrl-protocol"
+description = "Messages between the herdr-ctrl command line and the server inside Herdr"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
