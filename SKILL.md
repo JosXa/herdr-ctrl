@@ -18,7 +18,7 @@ herdr-ctrl snapshot -i
 herdr-ctrl stop h1
 ```
 
-`spawn` prints the instance name. `restart` relaunches its window on the rebuilt binary; it restarts the core too unless you pass `--keep-core`. `exec -- hc ls` runs a command with the instance's environment. `opened` lists URLs and files the app tried to open; the instance never opens them.
+`spawn` prints the instance name. `restart` relaunches its window on the rebuilt binary; it restarts the core too unless you pass `--keep-core`. On the live window (`--on live`, the default) `restart` runs Herdr's `app.restart`, waits for the old window to quit and a new one to answer, and always keeps the core and its terminals; it needs a fork build with `app.restart` (personal-v0.1.13.37 or later). `exec -- hc ls` runs a command with the instance's environment. `opened` lists URLs and files the app tried to open; the instance never opens them.
 
 ## The loop
 

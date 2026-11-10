@@ -64,9 +64,9 @@ enum Cmd {
     },
     /// Remove instances whose supervisor is gone.
     Gc,
-    /// Restart a hidden instance's window, picking up a rebuilt binary.
+    /// Restart the window, picking up a rebuilt binary; the live window always keeps its core.
     Restart {
-        /// Keep the core and its terminals running.
+        /// Keep a hidden instance's core and its terminals running.
         #[arg(long)]
         keep_core: bool,
     },
@@ -632,9 +632,7 @@ fn run(cli: Cli) -> Result<()> {
         Cmd::Restart { keep_core } => {
             let target = Target::resolve(&cli.on)?;
             let Some(mut instance) = target.instance else {
-                return Err(Fail::new("unsupported", "herdr-ctrl restarts hidden instances only")
-                    .hint("restart the live window yourself")
-                    .into());
+                return restart_live(&out, &target);
             };
             let mut ctrl = instance::restart(&mut instance, *keep_core)?;
             out.done(
@@ -1050,7 +1048,8 @@ fn run(cli: Cli) -> Result<()> {
                     "several windows or a shared core between instances": "each instance has one window and its own core",
                     "mod source, spec, console and eval": "use `herdr-ctrl logs`, `mod check` and `status` errors",
                     "mod= and pane= selectors": "the tree does not say which mod or pane built an element; use ctx=, #id or text",
-                    "live window logs and restart": "hidden instances only"
+                    "live window logs": "hidden instances only",
+                    "restarting the live core": "`restart` on the live window keeps its core and terminals"
                 }
             }));
             Ok(())
@@ -1061,6 +1060,43 @@ fn run(cli: Cli) -> Result<()> {
         }
         Cmd::Mcp => mcp::serve(),
         Cmd::Supervise { name } => instance::supervise(name),
+    }
+}
+
+fn restart_live(out: &Out, target: &Target) -> Result<()> {
+    let previous = target.ctrl()?.hello.pid;
+    if let Err(error) = target.app(json!({"do": "app.restart", "args": {}}))
+        && is_kind(&error, "app")
+    {
+        return Err(Fail::new("unsupported", format!("the live window refused app.restart: {error}"))
+            .hint("this Herdr build predates app.restart (fork personal-v0.1.13.37); quit and reopen Herdr yourself")
+            .into());
+    }
+    let socket = target.home.join(herdr_ctrl_protocol::SOCKET_NAME);
+    let start = Instant::now();
+    while instance::alive(Some(previous)) {
+        if start.elapsed() > Duration::from_secs(30) {
+            return Err(fail("timeout", format!("the live window (pid {previous}) did not quit within 30s")));
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    loop {
+        if let Ok(mut ctrl) = Ctrl::connect(&socket)
+            && ctrl.hello.pid != previous
+            && let Ok(window) = ctrl.window()
+        {
+            out.done(
+                json!({"name": target::LIVE, "app_pid": ctrl.hello.pid, "previous_pid": previous, "window": window.window}),
+                format!("restarted live (pid {previous} -> {})", ctrl.hello.pid),
+            );
+            return Ok(());
+        }
+        if start.elapsed() > Duration::from_secs(90) {
+            return Err(Fail::new("timeout", "the live window quit but no new window answered within 90s")
+                .hint("start Herdr yourself; your terminals kept running in herdr-core")
+                .into());
+        }
+        std::thread::sleep(Duration::from_millis(100));
     }
 }
 
